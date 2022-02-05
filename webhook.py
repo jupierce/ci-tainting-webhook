@@ -2,7 +2,7 @@
 
 from flask import Flask, request, jsonify
 import base64
-import random
+from enum import Enum
 import jsonpatch
 import sys
 
@@ -26,6 +26,12 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+class PodTarget(Enum):
+    TESTS_WORKLOAD = 2
+    BUILD_WORKLOAD = 1
+    NONE = 0
+
+
 @admission_controller.route('/mutate/pods', methods=['POST'])
 def pods_webhook_mutate():
     request_info = request.get_json()['request']
@@ -35,19 +41,32 @@ def pods_webhook_mutate():
     namespace = request_info["namespace"]
     spec = request_info["object"]['spec']
 
+    pod_target = PodTarget.NONE
+
+    if namespace == "ci":
+        labels = metadata.get('labels', {})
+        if labels.get('created-by-prow', '') == 'true':
+            pod_target = PodTarget.TESTS_WORKLOAD
+
     if namespace.startswith(CI_OPERATOR_NAMESPACE_PREFIX):
         labels = metadata.get('labels', {})
+        if BUILD_LABEL_NAME in labels:
+            pod_target = PodTarget.BUILD_WORKLOAD
+        else:
+            pod_target = PodTarget.TESTS_WORKLOAD
+
+    if pod_target is not PodTarget.NONE:
         tolerations = spec.get('tolerations', [])
         node_selector = spec.get('nodeSelector', {})
 
-        if BUILD_LABEL_NAME in labels:
+        if pod_target == PodTarget.BUILD_WORKLOAD:
             # This is a build job. Tolerate the build node taint and
             # add a node selector.
             tolerations.append(
                 {"key": "node-role.kubernetes.io/ci-build-worker", "operator": "Exists", "effect": "NoSchedule"}
             )
             node_selector["ci-workload"] = "builds"
-        else:
+        elif pod_target == PodTarget.TESTS_WORKLOAD:
             # This is a test-like job. Tolerate the test node taint and
             # add a node selector.
             tolerations.append(
