@@ -35,11 +35,7 @@ spec:
   - name: main
     port: 443
     protocol: TCP
-    targetPort: 8080
-  - name: metrics
-    port: 9090
-    protocol: TCP
-    targetPort: metrics
+    targetPort: 8443
   selector:
     app: ci-tainting-consumer-admission
   sessionAffinity: None
@@ -48,14 +44,12 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"ci-tainting:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"ci-tainting\")].image"}]'
   labels:
     app: ci-tainting-consumer-admission
   name: ci-tainting-consumer-admission
   namespace: ci
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: ci-tainting-consumer-admission
@@ -64,39 +58,14 @@ spec:
       labels:
         app: ci-tainting-consumer-admission
     spec:
-      serviceAccountName: ci-tainting
       containers:
-      - image: ci-tainting
+      - image: quay.io/jupierce/ci-tainting-webhook:latest
         name: ci-tainting
-        args:
-        - --loglevel=debug
-        - --cache-bucket=origin-ci-resource-usage-data
-        - --gcs-credentials-file=/etc/gcs/service-account.json
-        - --mode=consumer.admission
-        - --serving-cert-dir=/etc/pki/tls/certs/admission
-        - --port=8080
+        imagePullPolicy: Always
         ports:
           - name: main
-            containerPort: 8080
-          - name: metrics
-            containerPort: 9090
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /healthz/ready
-            port: 8081
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 1200
+            containerPort: 8443
         volumeMounts:
-        - name: gcs-credentials
-          mountPath: /etc/gcs
-          readOnly: true
         - name: serving-cert
           mountPath: /etc/pki/tls/certs/admission
           readOnly: true
@@ -105,9 +74,6 @@ spec:
             memory: "2Gi"
             cpu: "250m"
       volumes:
-      - name: gcs-credentials
-        secret:
-          secretName: gce-sa-credentials-resource-usage-data-publisher
       - name: serving-cert
         secret:
           defaultMode: 420
