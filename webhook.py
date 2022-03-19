@@ -49,7 +49,8 @@ def pods_webhook_mutate():
         if labels.get('created-by-prow', '') == 'true':
             pod_target = PodTarget.TESTS_WORKLOAD
 
-    if namespace in ['openshift-marketplace', 'openshift-monitoring', 'rh-corp-logging', 'ocp']:
+    # OSD has so. many. operators which aren't using replicasets. Just setup prefix based matching.
+    if namespace.startswith('openshift-') or namespace in ['openshift-marketplace', 'openshift-monitoring', 'rh-corp-logging', 'ocp', 'openshift-splunk-forwarder-operator', 'openshift-route-monitor-operator', 'openshift-velero', 'openshift-osd-metrics', 'openshift-cloud-ingress-operator', 'openshift-rbac-permissions', 'openshift-network-diagnostics', 'cert-manager', 'openshift-user-workload-monitoring', 'openshift-managed-upgrade-operator', 'openshift-must-gather-operator', 'openshift-addon-operator']:
         # Two categories of pods are evading packing:
         # 1. Those with local storage. We should consider setting `skipNodesWithLocalStorage: false` in the clusterautoscaler
         # 2. Those without replicasets. Some operators create pods directly and it impedes the autoscaler making the right decision. (rh-corp-logging, openshift-marketplace)
@@ -117,7 +118,7 @@ def pods_webhook_mutate():
             # autoscaler can more readily find nodes without unevictable
             # workloads.
             # This is not current done on test pods since there is an issue where
-            # the k8s scheduler believes there is free CPU on a node and when the
+            # the k8s scheduler_res believes there is free CPU on a node and when the
             # kubelet checks, it finds there is not enough free and causes the pod
             # to fail scheduling.
             # Theories on this:

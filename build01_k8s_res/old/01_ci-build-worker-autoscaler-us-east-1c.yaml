@@ -4,7 +4,7 @@ kind: MachineSet
 metadata:
   labels:
     machine.openshift.io/cluster-api-cluster: build01-9hdwj
-  name: build01-9hdwj-ci-build-worker-us-east-1a
+  name: build01-9hdwj-ci-build-worker-us-east-1c
   namespace: openshift-machine-api
 spec:
   deletePolicy: Oldest
@@ -12,14 +12,14 @@ spec:
   selector:
     matchLabels:
       machine.openshift.io/cluster-api-cluster: build01-9hdwj
-      machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1a
+      machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1c
   template:
     metadata:
       labels:
         machine.openshift.io/cluster-api-cluster: build01-9hdwj
         machine.openshift.io/cluster-api-machine-role: worker
         machine.openshift.io/cluster-api-machine-type: worker
-        machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1a
+        machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1c
     spec:
       metadata:
         labels:
@@ -45,7 +45,7 @@ spec:
           kind: AWSMachineProviderConfig
           metadata: {}
           placement:
-            availabilityZone: us-east-1a
+            availabilityZone: us-east-1c
             region: us-east-1
           securityGroups:
           - filters:
@@ -56,7 +56,7 @@ spec:
             filters:
             - name: tag:Name
               values:
-              - build01-9hdwj-private-us-east-1a
+              - build01-9hdwj-private-us-east-1c
           tags:
           - name: kubernetes.io/cluster/build01-9hdwj
             value: owned
@@ -66,15 +66,15 @@ spec:
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
 metadata:
-  name: build01-9hdwj-ci-build-worker-us-east-1a
+  name: build01-9hdwj-ci-build-worker-us-east-1c
   namespace: openshift-machine-api
 spec:
   maxReplicas: 40
-  minReplicas: 1
+  minReplicas: 0
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet
-    name: build01-9hdwj-ci-build-worker-us-east-1a
+    name: build01-9hdwj-ci-build-worker-us-east-1c
 
 
 

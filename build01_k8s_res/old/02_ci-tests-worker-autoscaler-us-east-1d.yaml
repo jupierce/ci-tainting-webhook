@@ -34,7 +34,7 @@ spec:
           apiVersion: awsproviderconfig.openshift.io/v1beta1
           blockDevices:
           - ebs:
-              volumeSize: 1500
+              volumeSize: 300
               volumeType: gp2
           credentialsSecret:
             name: aws-cloud-credentials
@@ -70,7 +70,7 @@ metadata:
   namespace: openshift-machine-api
 spec:
   maxReplicas: 40
-  minReplicas: 1
+  minReplicas: 0
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet

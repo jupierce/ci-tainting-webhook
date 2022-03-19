@@ -37,7 +37,7 @@ spec:
           - autoDelete: true
             boot: true
             image: projects/rhcos-cloud/global/images/rhcos-46-82-202011260640-0-gcp-x86-64
-            sizeGb: 600
+            sizeGb: 128
             type: pd-ssd
           kind: GCPMachineProviderSpec
           machineType: n1-standard-16
@@ -64,7 +64,7 @@ metadata:
   namespace: openshift-machine-api
 spec:
   maxReplicas: 40
-  minReplicas: 1
+  minReplicas: 0
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet

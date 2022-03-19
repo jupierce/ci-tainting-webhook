@@ -1,0 +1,20 @@
+apiVersion: kubescheduler.config.k8s.io/v1beta1
+kind: KubeSchedulerConfiguration
+leaderElection:
+  leaderElect: false
+profiles:
+- schedulerName: trimaran
+  plugins:
+    score:
+      disabled:
+      - name: NodeResourcesBalancedAllocation
+      - name: NodeResourcesLeastAllocated
+      enabled:
+      - name: TargetLoadPacking
+  pluginConfig:
+    - name: TargetLoadPacking
+      args:
+        targetUtilization: 80
+        defaultRequests:
+          cpu: "100m"
+        watcherAddress: http://127.0.0.1:2020

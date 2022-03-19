@@ -4,7 +4,7 @@ kind: MachineSet
 metadata:
   labels:
     machine.openshift.io/cluster-api-cluster: build01-9hdwj
-  name: build01-9hdwj-ci-tests-worker-us-east-1a
+  name: build01-9hdwj-ci-build-worker-us-east-1a
   namespace: openshift-machine-api
 spec:
   deletePolicy: Oldest
@@ -12,20 +12,20 @@ spec:
   selector:
     matchLabels:
       machine.openshift.io/cluster-api-cluster: build01-9hdwj
-      machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-tests-worker-us-east-1a
+      machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1a
   template:
     metadata:
       labels:
         machine.openshift.io/cluster-api-cluster: build01-9hdwj
         machine.openshift.io/cluster-api-machine-role: worker
         machine.openshift.io/cluster-api-machine-type: worker
-        machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-tests-worker-us-east-1a
+        machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-build-worker-us-east-1a
     spec:
       metadata:
         labels:
-          ci-workload: tests
+          ci-workload: builds
       taints:
-      - key: node-role.kubernetes.io/ci-tests-worker
+      - key: node-role.kubernetes.io/ci-build-worker
         effect: NoSchedule
       providerSpec:
         value:
@@ -66,15 +66,15 @@ spec:
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
 metadata:
-  name: build01-9hdwj-ci-tests-worker-us-east-1a
+  name: build01-9hdwj-ci-build-worker-us-east-1a
   namespace: openshift-machine-api
 spec:
   maxReplicas: 40
-  minReplicas: 1
+  minReplicas: 0
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet
-    name: build01-9hdwj-ci-tests-worker-us-east-1a
+    name: build01-9hdwj-ci-build-worker-us-east-1a
 
 
 

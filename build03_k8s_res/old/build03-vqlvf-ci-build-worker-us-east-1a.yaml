@@ -3,34 +3,30 @@ apiVersion: machine.openshift.io/v1beta1
 kind: MachineSet
 metadata:
   labels:
-    machine.openshift.io/cluster-api-cluster: build01-9hdwj
-  name: build01-9hdwj-ci-tests-worker-us-east-1c
+    machine.openshift.io/cluster-api-cluster: build03-vqlvf
+  name: build03-vqlvf-ci-build-worker-us-east-1a
   namespace: openshift-machine-api
 spec:
-  deletePolicy: Oldest
   replicas: 1
   selector:
     matchLabels:
-      machine.openshift.io/cluster-api-cluster: build01-9hdwj
-      machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-tests-worker-us-east-1c
+      machine.openshift.io/cluster-api-cluster: build03-vqlvf
+      machine.openshift.io/cluster-api-machineset: build03-vqlvf-ci-build-worker-us-east-1a
   template:
     metadata:
       labels:
-        machine.openshift.io/cluster-api-cluster: build01-9hdwj
+        machine.openshift.io/cluster-api-cluster: build03-vqlvf
         machine.openshift.io/cluster-api-machine-role: worker
         machine.openshift.io/cluster-api-machine-type: worker
-        machine.openshift.io/cluster-api-machineset: build01-9hdwj-ci-tests-worker-us-east-1c
+        machine.openshift.io/cluster-api-machineset: build03-vqlvf-ci-build-worker-us-east-1a
     spec:
       metadata:
         labels:
-          ci-workload: tests
-      taints:
-      - key: node-role.kubernetes.io/ci-tests-worker
-        effect: NoSchedule
+          ci-workload: builds
       providerSpec:
         value:
           ami:
-            id: ami-06f85a7940faa3217
+            id: ami-0b35795bcab04ee70
           apiVersion: awsproviderconfig.openshift.io/v1beta1
           blockDevices:
           - ebs:
@@ -40,41 +36,43 @@ spec:
             name: aws-cloud-credentials
           deviceIndex: 0
           iamInstanceProfile:
-            id: build01-9hdwj-worker-profile
+            id: build03-vqlvf-worker-profile
           instanceType: m5.4xlarge
           kind: AWSMachineProviderConfig
-          metadata: {}
+          metadata:
+            creationTimestamp: null
           placement:
-            availabilityZone: us-east-1c
+            availabilityZone: us-east-1a
             region: us-east-1
           securityGroups:
           - filters:
             - name: tag:Name
               values:
-              - build01-9hdwj-worker-sg
+              - build03-vqlvf-worker-sg
           subnet:
             filters:
             - name: tag:Name
               values:
-              - build01-9hdwj-private-us-east-1c
+              - build03-vqlvf-private-us-east-1a
           tags:
-          - name: kubernetes.io/cluster/build01-9hdwj
+          - name: kubernetes.io/cluster/build03-vqlvf
             value: owned
           userDataSecret:
             name: worker-user-data
+      taints:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/ci-build-worker
+        value: ci-build-worker
 ---
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
 metadata:
-  name: build01-9hdwj-ci-tests-worker-us-east-1c
+  name: build03-vqlvf-ci-build-worker-us-east-1a
   namespace: openshift-machine-api
 spec:
-  maxReplicas: 40
+  maxReplicas: 50
   minReplicas: 1
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet
-    name: build01-9hdwj-ci-tests-worker-us-east-1c
-
-
-
+    name: build03-vqlvf-ci-build-worker-us-east-1a

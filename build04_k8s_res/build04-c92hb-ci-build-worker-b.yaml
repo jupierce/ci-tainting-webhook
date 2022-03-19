@@ -3,32 +3,29 @@ apiVersion: machine.openshift.io/v1beta1
 kind: MachineSet
 metadata:
   labels:
-    machine.openshift.io/cluster-api-cluster: build0-gstfj
-  name: build0-gstfj-ci-build-worker-d
+    machine.openshift.io/cluster-api-cluster: build04-c92hb
+  name: build04-c92hb-ci-build-worker-b
   namespace: openshift-machine-api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      machine.openshift.io/cluster-api-cluster: build0-gstfj
-      machine.openshift.io/cluster-api-machineset: build0-gstfj-ci-build-worker-d
+      machine.openshift.io/cluster-api-cluster: build04-c92hb
+      machine.openshift.io/cluster-api-machineset: build04-c92hb-ci-build-worker-b
   template:
     metadata:
       labels:
-        machine.openshift.io/cluster-api-cluster: build0-gstfj
+        machine.openshift.io/cluster-api-cluster: build04-c92hb
         machine.openshift.io/cluster-api-machine-role: worker
         machine.openshift.io/cluster-api-machine-type: worker
-        machine.openshift.io/cluster-api-machineset: build0-gstfj-ci-build-worker-d
+        machine.openshift.io/cluster-api-machineset: build04-c92hb-ci-build-worker-b
     spec:
       metadata:
         labels:
           ci-workload: builds
-      taints:
-      - key: node-role.kubernetes.io/ci-build-worker
-        effect: NoSchedule
       providerSpec:
         value:
-          apiVersion: gcpprovider.openshift.io/v1beta1
+          apiVersion: machine.openshift.io/v1beta1
           canIPForward: false
           credentialsSecret:
             name: gcp-cloud-credentials
@@ -36,36 +33,41 @@ spec:
           disks:
           - autoDelete: true
             boot: true
-            image: projects/rhcos-cloud/global/images/rhcos-46-82-202011260640-0-gcp-x86-64
+            image: projects/rhcos-cloud/global/images/rhcos-49-84-202110081407-0-gcp-x86-64
             sizeGb: 600
             type: pd-ssd
           kind: GCPMachineProviderSpec
-          machineType: n1-standard-16
-          metadata: {}
+          machineType: custom-16-65536
+          metadata:
+            creationTimestamp: null
           networkInterfaces:
-          - network: build0-gstfj-network
-            subnetwork: build0-gstfj-worker-subnet
+          - network: build04-c92hb-network
+            subnetwork: build04-c92hb-worker-subnet
           projectID: openshift-ci-build-farm
           region: us-east1
           serviceAccounts:
-          - email: build0-gstfj-w@openshift-ci-build-farm.iam.gserviceaccount.com
+          - email: build04-c92hb-w@openshift-ci-build-farm.iam.gserviceaccount.com
             scopes:
             - https://www.googleapis.com/auth/cloud-platform
           tags:
-          - build0-gstfj-worker
+          - build04-c92hb-worker
           userDataSecret:
-            name: worker-user-data-ignv3
-          zone: us-east1-d
+            name: worker-user-data
+          zone: us-east1-b
+      taints:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/ci-build-worker
+        value: ci-build-worker
 ---
 apiVersion: autoscaling.openshift.io/v1beta1
 kind: MachineAutoscaler
 metadata:
-  name: build0-gstfj-ci-build-worker-d
+  name: build04-c92hb-ci-build-worker-b
   namespace: openshift-machine-api
 spec:
-  maxReplicas: 40
-  minReplicas: 0
+  maxReplicas: 50
+  minReplicas: 1
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1
     kind: MachineSet
-    name: build0-gstfj-ci-build-worker-d
+    name: build04-c92hb-ci-build-worker-b
