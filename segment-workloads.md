@@ -41,7 +41,7 @@ $ ./ocm create machinepool -c $CID --enable-autoscaling --instance-type $MACHINE
 
 Redeploying the webhook with updated code:
 ```shell
-$ oc --as system:admin delete -n ci $(oc get pods -n ci -o=name | grep tainting)
+$ oc --as system:admin delete -n ci $(oc get pods -n ci -o=name | grep ci-tainting)
 ```
 
 Viewing logs for deployment

@@ -35,9 +35,9 @@ spec:
           apiVersion: awsproviderconfig.openshift.io/v1beta1
           blockDevices:
           - ebs:
-              volumeSize: 300
+              volumeSize: 1800
               volumeType: io1
-              iops: 6000
+              iops: 8000
           credentialsSecret:
             name: aws-cloud-credentials
           deviceIndex: 0

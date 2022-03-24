@@ -1,0 +1,83 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: "ci-tainting.ci.openshift.io"
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+webhooks:
+- name: "ci-tainting.ci.openshift.io"
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    operations: ["CREATE"]
+    resources: ["pods"]
+    scope: "Namespaced"
+  clientConfig:
+    service:
+      namespace: "ci"
+      name: "ci-tainting-consumer-admission"
+      path: "/mutate/pods"
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  timeoutSeconds: 5
+  failurePolicy: Ignore
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci-tainting-consumer-admission
+  namespace: ci
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: ci-tainting-admission-serving-cert
+spec:
+  ports:
+  - name: main
+    port: 443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: ci-tainting-consumer-admission
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ci-tainting-consumer-admission
+  name: ci-tainting-consumer-admission
+  namespace: ci
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: ci-tainting-consumer-admission
+  template:
+    metadata:
+      labels:
+        app: ci-tainting-consumer-admission
+    spec:
+      containers:
+      - image: quay.io/jupierce/ci-tainting-webhook:latest
+        name: ci-tainting
+        args:
+        - "-c"
+        - "source scl_source enable rh-python36; python3 -V; python3 webhook.py --builds-scheduler=trimaran --tests-scheduler=trimaran"
+        imagePullPolicy: Always
+        ports:
+          - name: main
+            containerPort: 8443
+        volumeMounts:
+        - name: serving-cert
+          mountPath: /etc/pki/tls/certs/admission
+          readOnly: true
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "250m"
+      volumes:
+      - name: serving-cert
+        secret:
+          defaultMode: 420
+          secretName: ci-tainting-admission-serving-cert

@@ -4,6 +4,36 @@ metadata:
   name: trimaran
   namespace: kube-system
 ---
+# The scheduler needs to be able to cordon and uncordon nodes based on CPU utilization
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: trimaran-scheduler-node-tainting
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - watch
+  - list
+  - get
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: trimaran-as-trimaran-scheduler-node-tainting
+subjects:
+- kind: ServiceAccount
+  name: trimaran
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: trimaran-scheduler-node-tainting
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -15,6 +45,20 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: system:kube-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: trimaran-as-cluster-reader
+subjects:
+- kind: ServiceAccount
+  name: trimaran
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  # TODO reduce this to just node metrics
+  name: cluster-reader
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -57,6 +101,10 @@ spec:
     matchLabels:
       component: scheduler
       tier: control-plane
+  strategy:
+    # No rolling update.
+    # Owns a port, so cannot launch while another pod is running.
+    type: Recreate
   replicas: 1
   template:
     metadata:
@@ -73,25 +121,25 @@ spec:
         - /bin/kube-scheduler
         - --address=0.0.0.0
         - --leader-elect=false
-        - --config=/home/scheduler-config.yaml
+        - --config=/etc/kubernetes/scheduler-config.yaml
         - -v=6
-        image: quay.io/openshift-cr/trimaran:v1.22
+        image: quay.io/openshift-cr/trimaran:weighted3
         imagePullPolicy: Always
         resources:
           requests:
-            cpu: '0.1'
+            cpu: '1'
         securityContext:
           privileged: false
         volumeMounts:
         - mountPath: /shared
           name: shared
-      - name: load-watcher
-        command:
-        - /bin/load-watcher
-        image: quay.io/openshift-cr/load-watcher:latest
-        imagePullPolicy: Always
+        - name: etckubernetes
+          mountPath: /etc/kubernetes
       volumes:
       - name: shared
         hostPath:
           path: /tmp
           type: Directory
+      - name: etckubernetes
+        configMap:
+          name: trimaran-scheduler-config

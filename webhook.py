@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 import base64
 from enum import Enum
 import jsonpatch
+import argparse
 import sys
 
 CI_OPERATOR_NAMESPACE_PREFIX = 'ci-op-'
@@ -11,6 +12,10 @@ CI_LN_NAMESPACE_PREFIX = 'ci-ln-'
 BUILD_LABEL_NAME = 'openshift.io/build.name'
 
 VERSION = '0.5'
+
+builds_scheduler = None
+tests_scheduler = None
+remove_cpu_requests = False
 
 # Python modeled on https://medium.com/analytics-vidhya/how-to-write-validating-and-mutating-admission-controller-webhooks-in-python-for-kubernetes-1e27862cb798
 admission_controller = Flask(__name__)
@@ -113,7 +118,7 @@ def pods_webhook_mutate():
         # could use.
         labels['ci-workload-namespace'] = namespace
 
-        if not affinity and pod_target == PodTarget.BUILD_WORKLOAD:
+        if not affinity and not builds_scheduler and pod_target == PodTarget.BUILD_WORKLOAD:
             # If none is set, node affinity is used to pack build pods together so that the
             # autoscaler can more readily find nodes without unevictable
             # workloads.
@@ -172,6 +177,8 @@ def pods_webhook_mutate():
                 }
             }
 
+        scheduler_name = None
+
         if pod_target == PodTarget.BUILD_WORKLOAD:
             # This is a build job. Tolerate the build node taint and
             # add a node selector.
@@ -179,6 +186,7 @@ def pods_webhook_mutate():
                 {"key": "node-role.kubernetes.io/ci-build-worker", "operator": "Exists", "effect": "NoSchedule"}
             )
             node_selector["ci-workload"] = "builds"
+            scheduler_name = builds_scheduler
         elif pod_target == PodTarget.TESTS_WORKLOAD:
             # This is a test-like job. Tolerate the test node taint and
             # add a node selector.
@@ -186,21 +194,41 @@ def pods_webhook_mutate():
                 {"key": "node-role.kubernetes.io/ci-tests-worker", "operator": "Exists", "effect": "NoSchedule"}
             )
             node_selector["ci-workload"] = "tests"
+            scheduler_name = tests_scheduler
 
         eprint(f'Pod in {namespace} has been selected for assignment: {node_selector}')
+
+        patches = [
+            # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+            {"op": "add", "path": "/metadata/labels", "value": labels},
+            {"op": "add", "path": "/spec/tolerations", "value": tolerations},
+            {"op": "add", "path": "/spec/nodeSelector", "value": node_selector},
+            {"op": "add", "path": "/spec/affinity", "value": affinity}
+        ]
+
+        if scheduler_name:
+            patches.append(
+                {"op": "add", "path": "/spec/schedulerName", "value": scheduler_name},
+            )
+
+        if remove_cpu_requests and pod_target == PodTarget.TESTS_WORKLOAD:
+            for container_type in ['initContainers', 'containers']:
+                containers = spec.get(container_type, [])
+                for idx, container in enumerate(containers):
+                    resources = container.get('resources', {})
+                    for ressource_group_type in ['limits', 'requests']:
+                        res_group = resources.get(ressource_group_type, {})
+                        if res_group.get("cpu", None):
+                            patches.append(
+                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/{ressource_group_type}/cpu"},
+                            )
 
         return admission_response_patch(
             request_uid,
             allowed=True,
             message="Adding attributes to partition ci workloads",
             json_patch=jsonpatch.JsonPatch(
-                [
-                    # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
-                    {"op": "add", "path": "/metadata/labels", "value": labels},
-                    {"op": "add", "path": "/spec/tolerations", "value": tolerations},
-                    {"op": "add", "path": "/spec/nodeSelector", "value": node_selector},
-                    {"op": "add", "path": "/spec/affinity", "value": affinity}
-                ]
+                patches
             )
         )
 
@@ -232,4 +260,19 @@ def admission_response_patch(request_uid, allowed=True, message=None, json_patch
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='ci-scheduler-webhook')
+    parser.add_argument('--builds-scheduler', help='Name of the pod scheduler to use for builds', required=False,
+                        default=None)
+    parser.add_argument('--tests-scheduler', help='Name of the pod scheduler to use for test', required=False,
+                        default=None)
+    parser.add_argument("--remove-cpu-requests", default=False, action="store_true",
+                        help="Completely remove cpu requests from incoming pods; only use with CPU utilization aware scheduler")
+    args = vars(parser.parse_args())
+
+    builds_scheduler = args['builds_scheduler']
+    tests_scheduler = args['tests_scheduler']
+    remove_cpu_requests = args['remove_cpu_requests']
+
+    print(f'Using builds scheduler: {builds_scheduler}')
+    print(f'Using tests scheduler: {tests_scheduler}')
     admission_controller.run(host='0.0.0.0', port=8443, ssl_context=('/etc/pki/tls/certs/admission/tls.crt', '/etc/pki/tls/certs/admission/tls.key'))

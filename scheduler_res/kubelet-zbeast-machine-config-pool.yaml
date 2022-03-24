@@ -1,0 +1,27 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfigPool
+metadata:
+  name: zbeast
+  annotations:
+    reason: "named zbeast so that lexicographical ordering of the kubeletconfig cpu96 will occur after the standard 99-worker-generated-kubelet* machineconfigs"
+  labels:
+    custom-kubelet: cpu96
+spec:
+  machineConfigSelector:
+    matchExpressions:
+    - key: "machineconfiguration.openshift.io/role"
+      operator: In
+      values:
+      - worker
+      - zbeast
+  nodeSelector:
+    matchExpressions:
+    - key: "ci-workload"
+      operator: In
+      values:
+      - builds
+      - tests
+    - key: "node.kubernetes.io/instance-type"
+      operator: In
+      values:
+      - c6a.24xlarge
