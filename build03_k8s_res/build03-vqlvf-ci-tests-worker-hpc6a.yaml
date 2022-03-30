@@ -5,8 +5,8 @@ metadata:
   annotations:
     # instance type is unknown, so the autoscaler must be told about capacity:  https://access.redhat.com/solutions/6640721
     machine.openshift.io/GPU: "0"
-    machine.openshift.io/memoryMb: "196608"
-    machine.openshift.io/vCPU: "96"
+    machine.openshift.io/memoryMb: "65536"
+    machine.openshift.io/vCPU: "16"
   labels:
     machine.openshift.io/cluster-api-cluster: build03-vqlvf
   name: build03-vqlvf-ci-tests-worker-hpc6a
@@ -35,15 +35,15 @@ spec:
           apiVersion: awsproviderconfig.openshift.io/v1beta1
           blockDevices:
           - ebs:
-              volumeSize: 1800
+              volumeSize: 300
               volumeType: io1
-              iops: 8000
+              iops: 5000
           credentialsSecret:
             name: aws-cloud-credentials
           deviceIndex: 0
           iamInstanceProfile:
             id: build03-vqlvf-worker-profile
-          instanceType: c6a.24xlarge
+          instanceType: m5.4xlarge
           kind: AWSMachineProviderConfig
           metadata:
             creationTimestamp: null
@@ -76,7 +76,7 @@ metadata:
   name: build03-vqlvf-ci-tests-worker-hpc6a
   namespace: openshift-machine-api
 spec:
-  maxReplicas: 7
+  maxReplicas: 50
   minReplicas: 0
   scaleTargetRef:
     apiVersion: machine.openshift.io/v1beta1

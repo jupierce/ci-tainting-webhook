@@ -107,6 +107,7 @@ def pods_webhook_mutate():
         tolerations = spec.get('tolerations', [])
         node_selector = spec.get('nodeSelector', {})
         labels = metadata.get('labels', {})
+        annotations = metadata.get('annotations', {})
         affinity = spec.get('affinity', {})
 
         # Add a label that will help pod affinity pack pods
@@ -179,32 +180,27 @@ def pods_webhook_mutate():
 
         scheduler_name = None
 
+        toleration_to_add = None
         if pod_target == PodTarget.BUILD_WORKLOAD:
             # This is a build job. Tolerate the build node taint and
             # add a node selector.
-            tolerations.append(
-                {"key": "node-role.kubernetes.io/ci-build-worker", "operator": "Exists", "effect": "NoSchedule"}
-            )
+            toleration_to_add = {"key": "node-role.kubernetes.io/ci-build-worker", "operator": "Exists", "effect": "NoSchedule"}
             node_selector["ci-workload"] = "builds"
             scheduler_name = builds_scheduler
         elif pod_target == PodTarget.TESTS_WORKLOAD:
             # This is a test-like job. Tolerate the test node taint and
             # add a node selector.
-            tolerations.append(
-                {"key": "node-role.kubernetes.io/ci-tests-worker", "operator": "Exists", "effect": "NoSchedule"}
-            )
+            toleration_to_add = {"key": "node-role.kubernetes.io/ci-tests-worker", "operator": "Exists", "effect": "NoSchedule"}
             node_selector["ci-workload"] = "tests"
             scheduler_name = tests_scheduler
 
+        # Check before adding in case idempotence is necessary.
+        if toleration_to_add and toleration_to_add not in tolerations:
+            tolerations.append(toleration_to_add)
+
         eprint(f'Pod in {namespace} has been selected for assignment: {node_selector}')
 
-        patches = [
-            # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
-            {"op": "add", "path": "/metadata/labels", "value": labels},
-            {"op": "add", "path": "/spec/tolerations", "value": tolerations},
-            {"op": "add", "path": "/spec/nodeSelector", "value": node_selector},
-            {"op": "add", "path": "/spec/affinity", "value": affinity}
-        ]
+        patches = []
 
         if scheduler_name:
             patches.append(
@@ -212,16 +208,44 @@ def pods_webhook_mutate():
             )
 
         if remove_cpu_requests and pod_target == PodTarget.TESTS_WORKLOAD:
+            pod_name = metadata.get('name', 'unknown')
+            eprint(f'Removing limits from pod: {namespace}/{pod_name}')
+
+            # Ask that the CI autoscaling webhook not to take any action to introduce
+            # limits into this pod.
+            annotations['ci-workload-autoscaler.openshift.io/scale'] = "false"
             for container_type in ['initContainers', 'containers']:
                 containers = spec.get(container_type, [])
+                eprint(f'During remove, found {container_type}: {containers}')
                 for idx, container in enumerate(containers):
-                    resources = container.get('resources', {})
-                    for ressource_group_type in ['limits', 'requests']:
-                        res_group = resources.get(ressource_group_type, {})
-                        if res_group.get("cpu", None):
-                            patches.append(
-                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/{ressource_group_type}/cpu"},
-                            )
+                    eprint(f'During remove, found {container_type}: [{idx}]: {container}')
+
+                    resources = container.get('resources', None)
+                    if resources is not None:
+                        # Unclear why, but webhook does not receive obj.spec with resource requests
+                        # and limits populated. Trying a dumb delete instead of trying to be smart
+                        # checking whether they exist.
+
+                        if resources.get('limits', None) is not None:
+                            patches.extend([
+                                {"op": "add", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu", "value": "1m"},
+                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu"},
+                            ])
+                        if resources.get('requests', None) is not None:
+                            patches.extend([
+                                {"op": "add", "path": f"/spec/{container_type}/{idx}/resources/requests/cpu", "value": "1m"},
+                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/requests/cpu"},
+                            ])
+                        continue
+
+        patches.extend([
+            # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+            {"op": "add", "path": "/metadata/annotations", "value": annotations},
+            {"op": "add", "path": "/metadata/labels", "value": labels},
+            {"op": "add", "path": "/spec/tolerations", "value": tolerations},
+            {"op": "add", "path": "/spec/nodeSelector", "value": node_selector},
+            {"op": "add", "path": "/spec/affinity", "value": affinity}
+        ])
 
         return admission_response_patch(
             request_uid,

@@ -17,5 +17,8 @@ spec:
     command:
     - sleep
     - "10"
+    resources:
+      requests:
+        cpu: "100m"
   terminationGracePeriodSeconds: 0
   restartPolicy: Never

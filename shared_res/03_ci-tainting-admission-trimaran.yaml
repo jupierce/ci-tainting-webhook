@@ -19,6 +19,7 @@ webhooks:
       name: "ci-tainting-consumer-admission"
       path: "/mutate/pods"
   admissionReviewVersions: ["v1"]
+  reinvocationPolicy: "IfNeeded"
   sideEffects: None
   timeoutSeconds: 5
   failurePolicy: Ignore

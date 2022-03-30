@@ -17,5 +17,11 @@ spec:
     command:
     - sleep
     - "10"
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 200m
+      requests:
+        memory: 1Gi
   terminationGracePeriodSeconds: 0
   restartPolicy: Never
