@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: scheduler
+    tier: control-plane
+  name: trimaran-next
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      component: scheduler
+      tier: control-plane
+  strategy:
+    # No rolling update.
+    # Owns a port, so cannot launch while another pod is running.
+    type: Recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        component: scheduler
+        tier: control-plane
+        version: second
+    spec:
+      serviceAccountName: trimaran
+      hostNetwork: true
+      containers:
+      - name: trimaran
+        command:
+        - /bin/kube-scheduler
+        - --address=0.0.0.0
+        - --port=10266
+        - --leader-elect=false
+        - --config=/etc/kubernetes/scheduler-config-next.yaml
+        - -v=6
+        image: quay.io/openshift-cr/trimaran:next1
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: '1'
+        securityContext:
+          privileged: false
+        volumeMounts:
+        - mountPath: /shared
+          name: shared
+        - name: etckubernetes
+          mountPath: /etc/kubernetes
+      volumes:
+      - name: shared
+        hostPath:
+          path: /tmp
+          type: Directory
+      - name: etckubernetes
+        configMap:
+          name: trimaran-scheduler-config-next

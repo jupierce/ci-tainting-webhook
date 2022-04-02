@@ -3,7 +3,7 @@ kind: KubeSchedulerConfiguration
 leaderElection:
   leaderElect: false
 profiles:
-- schedulerName: trimaran
+- schedulerName: next
   plugins:
     preFilter:
       disabled:
@@ -27,5 +27,6 @@ profiles:
       args:
         targetUtilization: 60
         defaultRequestsMultiplier: "1"
+        allowRequestsOvercommit: true
         defaultRequests:
           cpu: "10m"

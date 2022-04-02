@@ -6,6 +6,7 @@ from enum import Enum
 import jsonpatch
 import argparse
 import sys
+import pprint
 
 CI_OPERATOR_NAMESPACE_PREFIX = 'ci-op-'
 CI_LN_NAMESPACE_PREFIX = 'ci-ln-'
@@ -15,7 +16,7 @@ VERSION = '0.5'
 
 builds_scheduler = None
 tests_scheduler = None
-remove_cpu_requests = False
+allow_cpu_overcommit = False
 
 # Python modeled on https://medium.com/analytics-vidhya/how-to-write-validating-and-mutating-admission-controller-webhooks-in-python-for-kubernetes-1e27862cb798
 admission_controller = Flask(__name__)
@@ -46,6 +47,8 @@ def pods_webhook_mutate():
     metadata = request_info["object"]["metadata"]
     namespace = request_info["namespace"]
     spec = request_info["object"]['spec']
+
+    eprint(pprint.pformat(request_info["object"], indent=4))
 
     pod_target = PodTarget.NONE
 
@@ -207,18 +210,19 @@ def pods_webhook_mutate():
                 {"op": "add", "path": "/spec/schedulerName", "value": scheduler_name},
             )
 
-        if remove_cpu_requests and pod_target == PodTarget.TESTS_WORKLOAD:
+        if allow_cpu_overcommit and pod_target == PodTarget.TESTS_WORKLOAD:
+            # Make sure the test platform pod scaler doesn't undo our change.
+            annotations['ci-workload-autoscaler.openshift.io/scale'] = 'true'
+
+            # Even if we trick the scheduler, the kubelet will check the incoming
+            # pod to see if requests are greater than capacity. So in order to
+            # overcommit, it is necessary to reduce the request.
             pod_name = metadata.get('name', 'unknown')
             eprint(f'Removing limits from pod: {namespace}/{pod_name}')
 
-            # Ask that the CI autoscaling webhook not to take any action to introduce
-            # limits into this pod.
-            annotations['ci-workload-autoscaler.openshift.io/scale'] = "false"
             for container_type in ['initContainers', 'containers']:
                 containers = spec.get(container_type, [])
-                eprint(f'During remove, found {container_type}: {containers}')
                 for idx, container in enumerate(containers):
-                    eprint(f'During remove, found {container_type}: [{idx}]: {container}')
 
                     resources = container.get('resources', None)
                     if resources is not None:
@@ -226,16 +230,18 @@ def pods_webhook_mutate():
                         # and limits populated. Trying a dumb delete instead of trying to be smart
                         # checking whether they exist.
 
-                        if resources.get('limits', None) is not None:
+                        limits = resources.get('limits', None)
+                        if limits is not None:
                             patches.extend([
                                 {"op": "add", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu", "value": "1m"},
-                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu"},
                             ])
-                        if resources.get('requests', None) is not None:
+
+                        requests = resources.get('requests', None)
+                        if requests is not None:
                             patches.extend([
                                 {"op": "add", "path": f"/spec/{container_type}/{idx}/resources/requests/cpu", "value": "1m"},
-                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/requests/cpu"},
                             ])
+
                         continue
 
         patches.extend([
@@ -289,13 +295,13 @@ if __name__ == '__main__':
                         default=None)
     parser.add_argument('--tests-scheduler', help='Name of the pod scheduler to use for test', required=False,
                         default=None)
-    parser.add_argument("--remove-cpu-requests", default=False, action="store_true",
-                        help="Completely remove cpu requests from incoming pods; only use with CPU utilization aware scheduler")
+    parser.add_argument("--allow-cpu-overcommit", default=False, action="store_true",
+                        help="Permit the scheduler to overcommit CPU requests")
     args = vars(parser.parse_args())
 
     builds_scheduler = args['builds_scheduler']
     tests_scheduler = args['tests_scheduler']
-    remove_cpu_requests = args['remove_cpu_requests']
+    allow_cpu_overcommit = args['allow_cpu_overcommit']
 
     print(f'Using builds scheduler: {builds_scheduler}')
     print(f'Using tests scheduler: {tests_scheduler}')
