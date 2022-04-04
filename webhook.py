@@ -235,6 +235,9 @@ def pods_webhook_mutate():
                             patches.extend([
                                 {"op": "add", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu", "value": "1m"},
                             ])
+                            patches.extend([
+                                {"op": "remove", "path": f"/spec/{container_type}/{idx}/resources/limits/cpu"},
+                            ])
 
                         requests = resources.get('requests', None)
                         if requests is not None:
