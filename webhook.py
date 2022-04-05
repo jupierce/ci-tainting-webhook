@@ -122,67 +122,7 @@ def pods_webhook_mutate():
         # could use.
         labels['ci-workload-namespace'] = namespace
 
-        if not affinity and not builds_scheduler and pod_target == PodTarget.BUILD_WORKLOAD:
-            # If none is set, node affinity is used to pack build pods together so that the
-            # autoscaler can more readily find nodes without unevictable
-            # workloads.
-            # This is not current done on test pods since there is an issue where
-            # the k8s scheduler_res believes there is free CPU on a node and when the
-            # kubelet checks, it finds there is not enough free and causes the pod
-            # to fail scheduling.
-            # Theories on this:
-            # - The CI pod autoscaler could artificially increase pod requirements so
-            #   that more CPU was reserved on node.
-            # - We could open a BZ with workloads to help investigate the problem.
-            affinity = {
-                'podAffinity': {
-                    'preferredDuringSchedulingIgnoredDuringExecution': [
-                        {
-                            # Prefer to reside on any node that is running a pod of the
-                            # same namespace (this will help pack mirroring pods and
-                            # will more effectively help nodes become free when test
-                            # namespaces are destroyed).
-                            'weight': 100,
-                            'podAffinityTerm': {
-                                'labelSelector': {
-                                    'matchExpressions': [
-                                        {
-                                            'key': 'ci-workload-namespace',
-                                            'operator': 'In',
-                                            'values': [
-                                                namespace
-                                            ]
-                                        }
-                                    ]
-                                },
-                                'topologyKey': "kubernetes.io/hostname"
-                            }
-                        },
-                        {
-                            # Prefer to reside on any node that is running a pod of this type already
-                            # to help pack pods instead of spread them.
-                            'weight': 50,
-                            'podAffinityTerm': {
-                                'labelSelector': {
-                                    'matchExpressions': [
-                                        {
-                                            'key': 'ci-workload',
-                                            'operator': 'In',
-                                            'values': [
-                                                pod_target.value
-                                            ]
-                                        }
-                                    ]
-                                },
-                                'topologyKey': "kubernetes.io/hostname"
-                            }
-                        }
-                    ]
-                }
-            }
-
         scheduler_name = None
-
         toleration_to_add = None
         if pod_target == PodTarget.BUILD_WORKLOAD:
             # This is a build job. Tolerate the build node taint and
@@ -218,7 +158,7 @@ def pods_webhook_mutate():
             # pod to see if requests are greater than capacity. So in order to
             # overcommit, it is necessary to reduce the request.
             pod_name = metadata.get('name', 'unknown')
-            eprint(f'Removing limits from pod: {namespace}/{pod_name}')
+            eprint(f'Reducing CPU requests in pod: {namespace}/{pod_name}')
 
             for container_type in ['initContainers', 'containers']:
                 containers = spec.get(container_type, [])

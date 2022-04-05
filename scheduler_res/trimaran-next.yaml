@@ -34,7 +34,7 @@ spec:
         - --leader-elect=false
         - --config=/etc/kubernetes/scheduler-config-next.yaml
         - -v=6
-        image: quay.io/openshift-cr/trimaran:next1
+        image: quay.io/openshift-cr/trimaran:weighted8
         imagePullPolicy: Always
         resources:
           requests:
